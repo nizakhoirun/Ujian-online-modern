@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="id" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CBT Exam System</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+                    colors: {
+                        primary: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8' },
+                        surface: { 50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1' },
+                        success: { 500:'#22c55e',600:'#16a34a' },
+                        danger: { 500:'#ef4444',600:'#dc2626' }
+                    }
+                }
+            }
+        }
+    </script>
+  <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        .fade-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .slide-in { animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from{transform:translateX(-100%)} to{transform:translateX(0)} }
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .btn-press { transition: transform 0.1s; }
+        .btn-press:active { transform: scale(0.96); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .toast { animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards; }
+        @keyframes toastIn { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes toastOut { from{opacity:1} to{opacity:0} }
+        .dark .dark-bg { background: #1e293b; }
+        .dark .dark-card { background: #334155; color: #f1f5f9; }
+        .dark .dark-text { color: #f1f5f9; }
+        .dark .dark-input { background: #475569; border-color: #64748b; color: #f1f5f9; }
+    </style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full bg-surface-50 font-sans text-gray-800 overflow-auto">
+  <div id="app" class="h-full w-full"></div>
+  <script>
+// ===== APP STATE =====
+const APP = {
+    currentView: 'login',
+    currentUser: null,
+    darkMode: false,
+    sidebarOpen: false,
+    data: [],
+    config: { app_title: 'CBT Exam System', school_name: 'SMA Negeri 1' },
+    examState: null,
+    toast: null
+};
+
+// Demo accounts
+const DEMO_ACCOUNTS = [
+    { id:'admin1', role:'admin', name:'Administrator', email:'admin@cbt.id', password:'admin123' },
+    { id:'guru1', role:'guru', name:'Budi Santoso, S.Pd', email:'budi@cbt.id', password:'guru123' },
+    { id:'guru2', role:'guru', name:'Siti Rahayu, M.Pd', email:'siti@cbt.id', password:'guru123' },
+    { id:'siswa1', role:'siswa', name:'Ahmad Rizki', email:'ahmad@cbt.id', password:'siswa123', class:'XII IPA 1' },
+    { id:'siswa2', role:'siswa', name:'Putri Amelia', email:'putri@cbt.id', password:'siswa123', class:'XII IPA 1' },
+    { id:'siswa3', role:'siswa', name:'Dimas Pratama', email:'dimas@cbt.id', password:'siswa123', class:'XII IPA 2' },
+];
+
+// Sample exams
+const SAMPLE_EXAMS = [
+    { id:'exam1', title:'UTS Matematika', subject:'Matematika', duration:90, class:'XII IPA 1', status:'active', teacher:'Budi Santoso, S.Pd', token:'MTK2024', startTime:'2024-12-15 08:00' },
+    { id:'exam2', title:'UAS Fisika', subject:'Fisika', duration:120, class:'XII IPA 1', status:'scheduled', teacher:'Siti Rahayu, M.Pd', token:'FIS2024', startTime:'2024-12-20 10:00' },
+    { id:'exam3', title:'Quiz Biologi', subject:'Biologi', duration:45, class:'XII IPA 2', status:'completed', teacher:'Budi Santoso, S.Pd', token:'BIO2024', startTime:'2024-12-10 09:00' },
+];
+
+const SAMPLE_QUESTIONS = [
+    { examId:'exam1', id:'q1', text:'Nilai dari limit x→0 (sin x)/x adalah...', type:'pg', options:JSON.stringify(['0','1','∞','Tidak ada']), correct:'B', difficulty:'mudah' },
+    { examId:'exam1', id:'q2', text:'Turunan dari f(x) = 3x² + 2x - 1 adalah...', type:'pg', options:JSON.stringify(['6x + 2','6x - 2','3x + 2','6x² + 2']), correct:'A', difficulty:'sedang' },
+    { examId:'exam1', id:'q3', text:'Integral dari ∫2x dx adalah...', type:'pg', options:JSON.stringify(['x²+C','2x²+C','x+C','2x+C']), correct:'A', difficulty:'mudah' },
+    { examId:'exam1', id:'q4', text:'Jelaskan konsep limit fungsi dan berikan contoh penerapannya dalam kehidupan sehari-hari!', type:'essay', options:'', correct:'', difficulty:'sulit' },
+    { examId:'exam1', id:'q5', text:'Jika f(x) = x³ - 3x² + 2, tentukan nilai x saat f\'(x) = 0', type:'pg', options:JSON.stringify(['x=0, x=2','x=1, x=3','x=0, x=3','x=1, x=2']), correct:'A', difficulty:'sulit' },
+];
+
+// Sample results for analytics
+const SAMPLE_RESULTS = [
+    { examId:'exam3', studentId:'siswa1', studentName:'Ahmad Rizki', score:85, answers:JSON.stringify({q1:'A',q2:'B',q3:'A'}) },
+    { examId:'exam3', studentId:'siswa2', studentName:'Putri Amelia', score:72, answers:JSON.stringify({q1:'A',q2:'A',q3:'C'}) },
+    { examId:'exam3', studentId:'siswa3', studentName:'Dimas Pratama', score:90, answers:JSON.stringify({q1:'A',q2:'B',q3:'A'}) },
+];
+
+// ===== UTILITY =====
+function showToast(msg, type='success') {
+    APP.toast = { msg, type };
+    render();
+    setTimeout(() => { APP.toast = null; render(); }, 3000);
+}
+
+function toggleDark() {
+    APP.darkMode = !APP.darkMode;
+    document.documentElement.classList.toggle('dark', APP.darkMode);
+    render();
+}
+
+// ===== RENDER ENGINE =====
+function render() {
+    const app = document.getElementById('app');
+    let html = '';
+    
+    if (APP.toast) {
+        const tc = APP.toast.type === 'success' ? 'bg-success-500' : APP.toast.type === 'error' ? 'bg-danger-500' : 'bg-primary-500';
+        html += `<div class="toast fixed bottom-4 left-1/2 -translate-x-1/2 ${tc} text-white px-6 py-3 rounded-xl shadow-lg z-[9999] text-sm font-medium">${APP.toast.msg}</div>`;
+    }
+
+    switch(APP.currentView) {
+        case 'login': html += renderLogin(); break;
+        case 'admin': html += renderAdmin(); break;
+        case 'guru': html += renderGuru(); break;
+        case 'siswa': html += renderSiswa(); break;
+        case 'exam': html += renderExam(); break;
+        default: html += renderLogin();
+    }
+    app.innerHTML = html;
+    lucide.createIcons();
+    bindEvents();
+}
+
+// ===== LOGIN PAGE =====
+function renderLogin() {
+    return `
+    <div class="h-full w-full flex items-center justify-center p-4 bg-gradient-to-br from-primary-50 via-white to-blue-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+        <div class="w-full max-w-sm fade-in">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-primary-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-200">
+                    <i data-lucide="graduation-cap" class="w-8 h-8 text-white"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800 dark-text">${APP.config.app_title}</h1>
+                <p class="text-sm text-gray-500 mt-1">${APP.config.school_name}</p>
+            </div>
+            <div class="bg-white dark-card rounded-3xl p-6 shadow-xl shadow-gray-200/50">
+                <div id="login-error" class="hidden bg-red-50 text-red-600 text-sm p-3 rounded-xl mb-4"></div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Email / NIP / NIS</label>
+                        <input id="login-email" type="text" placeholder="Masukkan email" class="w-full mt-1.5 px-4 py-3 rounded-xl border border-gray-200 dark-input focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition text-sm">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Password</label>
+                        <input id="login-pass" type="password" placeholder="Masukkan password" class="w-full mt-1.5 px-4 py-3 rounded-xl border border-gray-200 dark-input focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition text-sm">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center gap-2 text-sm text-gray-600">
+                            <input type="checkbox" id="remember" class="w-4 h-4 rounded border-gray-300 text-primary-500">
+                            <span>Ingat saya</span>
+                        </label>
+                        <button class="text-sm text-primary-500 font-medium" onclick="showToast('Fitur reset password akan dikirim via email','info')">Lupa password?</button>
+                    </div>
+                    <button id="btn-login" class="w-full py-3.5 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-semibold text-sm btn-press shadow-lg shadow-primary-200 transition">
+                        Masuk
+                    </button>
+                </div>
+                <div class="mt-6 pt-4 border-t border-gray-100">
+                    <p class="text-xs text-gray-400 text-center mb-3">Demo Akun:</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="fillDemo('admin')" class="text-xs py-2 px-2 bg-purple-50 text-purple-600 rounded-lg font-medium btn-press hover:bg-purple-100 transition">Admin</button>
+                        <button onclick="fillDemo('guru')" class="text-xs py-2 px-2 bg-green-50 text-green-600 rounded-lg font-medium btn-press hover:bg-green-100 transition">Guru</button>
+                        <button onclick="fillDemo('siswa')" class="text-xs py-2 px-2 bg-blue-50 text-blue-600 rounded-lg font-medium btn-press hover:bg-blue-100 transition">Siswa</button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-center mt-4">
+                <button onclick="toggleDark()" class="text-xs text-gray-400 flex items-center gap-1.5 hover:text-gray-600 transition">
+                    <i data-lucide="${APP.darkMode?'sun':'moon'}" class="w-3.5 h-3.5"></i>
+                    ${APP.darkMode?'Light Mode':'Dark Mode'}
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function fillDemo(role) {
+    const acc = DEMO_ACCOUNTS.find(a=>a.role===role);
+    if(acc) {
+        document.getElementById('login-email').value = acc.email;
+        document.getElementById('login-pass').value = acc.password;
+    }
+}
+
+function doLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const pass = document.getElementById('login-pass').value.trim();
+    const acc = DEMO_ACCOUNTS.find(a => a.email === email && a.password === pass);
+    if(acc) {
+        APP.currentUser = acc;
+        APP.currentView = acc.role;
+        APP.sidebarOpen = false;
+        showToast(`Selamat datang, ${acc.name}!`);
+    } else {
+        const err = document.getElementById('login-error');
+        if(err) { err.classList.remove('hidden'); err.textContent = 'Email atau password salah!'; }
+    }
+}
+
+function logout() {
+    APP.currentUser = null;
+    APP.currentView = 'login';
+    APP.sidebarOpen = false;
+    render();
+}
+
+// ===== ADMIN DASHBOARD =====
+let adminTab = 'dashboard';
+
+function renderAdmin() {
+    const tabs = [
+        {id:'dashboard',icon:'layout-dashboard',label:'Dashboard'},
+        {id:'users',icon:'users',label:'Pengguna'},
+        {id:'exams',icon:'file-text',label:'Ujian'},
+        {id:'analytics',icon:'bar-chart-3',label:'Analisis'},
+        {id:'settings',icon:'settings',label:'Pengaturan'},
+    ];
+    
+    return `
+    <div class="h-full w-full flex flex-col dark-bg">
+        <!-- Top Bar -->
+        <header class="bg-white dark-card border-b border-gray-100 px-4 py-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-3">
+                <button onclick="APP.sidebarOpen=!APP.sidebarOpen;render()" class="lg:hidden p-2 rounded-xl hover:bg-gray-100 transition">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <h1 class="text-lg font-bold">Admin Panel</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleDark()" class="p-2 rounded-xl hover:bg-gray-100 transition">
+                    <i data-lucide="${APP.darkMode?'sun':'moon'}" class="w-5 h-5"></i>
+                </button>
+                <button onclick="logout()" class="p-2 rounded-xl hover:bg-red-50 text-red-500 transition">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar -->
+            <aside class="${APP.sidebarOpen?'translate-x-0':'translate-x-full lg:translate-x-0'} fixed lg:static inset-y-0 right-0 lg:right-auto w-64 bg-white dark-card border-l lg:border-l-0 lg:border-r border-gray-100 z-50 transition-transform duration-300 pt-16 lg:pt-0">
+                <div class="p-4">
+                    <div class="flex items-center gap-3 mb-6 p-3 bg-primary-50 rounded-xl">
+                        <div class="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-sm">A</div>
+                        <div>
+                            <p class="text-sm font-semibold">Administrator</p>
+                            <p class="text-xs text-gray-500">Super Admin</p>
+                        </div>
+                    </div>
+                    <nav class="space-y-1">
+                        ${tabs.map(t=>`
+                            <button onclick="adminTab='${t.id}';APP.sidebarOpen=false;render()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition ${adminTab===t.id?'bg-primary-500 text-white shadow-md shadow-primary-200':'text-gray-600 hover:bg-gray-100'}">
+                                <i data-lucide="${t.icon}" class="w-4.5 h-4.5"></i>${t.label}
+                            </button>
+                        `).join('')}
+                    </nav>
+                </div>
+            </aside>
+            <!-- Content -->
+            <main class="flex-1 overflow-auto p-4 md:p-6">
+                ${adminTab==='dashboard'?renderAdminDashboard():''}
+                ${adminTab==='users'?renderAdminUsers():''}
+                ${adminTab==='exams'?renderAdminExams():''}
+                ${adminTab==='analytics'?renderAdminAnalytics():''}
+                ${adminTab==='settings'?renderAdminSettings():''}
+            </main>
+        </div>
+    </div>`;
+}
+
+function renderAdminDashboard() {
+    const stats = [
+        {label:'Total Siswa',value:'156',icon:'users',color:'bg-blue-500',bg:'bg-blue-50'},
+        {label:'Total Guru',value:'12',icon:'briefcase',color:'bg-green-500',bg:'bg-green-50'},
+        {label:'Ujian Aktif',value:'3',icon:'file-text',color:'bg-orange-500',bg:'bg-orange-50'},
+        {label:'Rata-rata Nilai',value:'78.5',icon:'trophy',color:'bg-purple-500',bg:'bg-purple-50'},
+    ];
+    return `
+    <div class="fade-in space-y-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            ${stats.map(s=>`
+                <div class="bg-white dark-card rounded-2xl p-4 card-hover shadow-sm">
+                    <div class="w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center mb-3">
+                        <i data-lucide="${s.icon}" class="w-5 h-5 ${s.color.replace('bg-','text-')}"></i>
+                    </div>
+                    <p class="text-2xl font-bold">${s.value}</p>
+                    <p class="text-xs text-gray-500 mt-0.5">${s.label}</p>
+                </div>
+            `).join('')}
+        </div>
+        <!-- Chart placeholder -->
+        <div class="bg-white dark-card rounded-2xl p-5 shadow-sm">
+            <h3 class="font-semibold mb-4">Statistik Ujian Bulanan</h3>
+            <div class="flex items-end gap-2 h-40">
+                ${[40,65,35,80,55,70,90,45,75,60,85,50].map((h,i)=>`
+                    <div class="flex-1 flex flex-col items-center gap-1">
+                        <div class="w-full bg-primary-400 rounded-t-lg transition-all hover:bg-primary-600" style="height:${h}%"></div>
+                        <span class="text-[10px] text-gray-400">${['J','F','M','A','M','J','J','A','S','O','N','D'][i]}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        <!-- Recent activity -->
+        <div class="bg-white dark-card rounded-2xl p-5 shadow-sm">
+            <h3 class="font-semibold mb-4">Monitoring Ujian Aktif</h3>
+            <div class="space-y-3">
+                ${SAMPLE_EXAMS.filter(e=>e.status==='active').map(e=>`
+                    <div class="flex items-center justify-between p-3 bg-green-50 rounded-xl">
+                        <div>
+                            <p class="font-medium text-sm">${e.title}</p>
+                            <p class="text-xs text-gray-500">${e.class} • ${e.teacher}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span class="text-xs font-medium text-green-600">32 siswa online</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderAdminUsers() {
+    return `
+    <div class="fade-in space-y-4">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold">Kelola Pengguna</h2>
+            <button onclick="showToast('Form tambah pengguna baru')" class="px-4 py-2 bg-primary-500 text-white rounded-xl text-sm font-medium btn-press flex items-center gap-2">
+                <i data-lucide="plus" class="w-4 h-4"></i>Tambah
+            </button>
+        </div>
+        <div class="bg-white dark-card rounded-2xl shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr><th class="px-4 py-3 text-left font-semibold text-gray-600">Nama</th><th class="px-4 py-3 text-left font-semibold text-gray-600">Role</th><th class="px-4 py-3 text-left font-semibold text-gray-600">Email</th><th class="px-4 py-3 text-left font-semibold text-gray-600">Aksi</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        ${DEMO_ACCOUNTS.map(a=>`
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="px-4 py-3 font-medium">${a.name}</td>
+                                <td class="px-4 py-3"><span class="px-2 py-1 rounded-lg text-xs font-medium ${a.role==='admin'?'bg-purple-100 text-purple-700':a.role==='guru'?'bg-green-100 text-green-700':'bg-blue-100 text-blue-700'}">${a.role}</span></td>
+                                <td class="px-4 py-3 text-gray-500">${a.email}</td>
+                                <td class="px-4 py-3 flex gap-1">
+                                    <button class="p-1.5 hover:bg-blue-50 rounded-lg transition"><i data-lucide="edit" class="w-4 h-4 text-blue-500"></i></button>
+                                    <button c
